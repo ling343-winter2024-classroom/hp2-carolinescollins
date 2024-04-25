@@ -1,0 +1,293 @@
+---
+title: "hwp2_collins"
+author: "Caroline Collins"
+embed-resources: TRUE
+---
+
+This project uses data from the tidy Tuesday collection on 10/18/2022 and includes two data sets. The first data set includes information about each episode ever released of the Netflix original series "Stranger Things." The columns include the Season Number, Episode Number, Episode Name, Director Name, Writer Name, and Original Release Date. The second data set, and the one this project focuses on, details all dialogue lines from every episode of the show. Similarly this data set has Season Number and Episode Number, but also includes raw text, line number, stage direction, dialogue, and the start and end times of each line of dialogue.
+
+The main goal of this project will be to see how the dialogue changes throughout the course of the show both within each season and across the airing of the show in general. This will be done through the use of summaries, a tf-idf analysis, sentiment analysisk, and word cloud features.
+
+```{r}
+#install.packages("tidytuesdayR")
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(tidytext)
+tuesdata <- tidytuesdayR::tt_load('2022-10-18')
+episodes <- tuesdata$episodes
+dialogue_st <- tuesdata$stranger_things_all_dialogue
+```
+
+Looking into the general dialogue data, there seem to be many rows filled with NA values since the actors aren't speaking on screen but performing some sort of other action. These rows needs to be removed for the sake of further analysis.
+
+```{r}
+dialogue_st_noNA <- dialogue_st %>%
+  filter(!is.na(dialogue))
+
+dialogue_unnest <- dialogue_st_noNA |>
+  unnest_tokens(word, dialogue) |>
+  anti_join(stop_words)
+
+table(dialogue_unnest$season)
+
+season1 <- dialogue_unnest %>%
+  filter(season == 1)
+
+table(season1$episode)
+
+season2 <- dialogue_unnest %>%
+  filter(season == 2)
+
+table(season2$episode)
+
+season3 <- dialogue_unnest %>%
+  filter(season == 3)
+
+table(season3$episode)
+
+season4 <- dialogue_unnest %>%
+  filter(season == 4)
+
+table(season4$episode)
+
+```
+
+Doing some more basic digging into the data to see some trends, each of the four seasons either has 8 or 9 episodes per season. When totaling the total number of words spoken per season, there is a steady increase between seasons 1, 2, and 3, but there is a sharp increase in the total number of words spoken per season between seasons 3 and 4.
+
+```{r}
+dialogue_summary <- dialogue_unnest %>%
+  group_by(episode) %>%
+  summarize(word_count = n())
+
+ggplot(dialogue_summary, aes(x = episode, y = word_count)) +
+  geom_bar(stat = "identity", fill = "pink") +
+  labs(title = "Words Per Episode (Seasons 1-4 of Stranger Things)", x = "Episode Number", y = "Total Word Count")+
+  scale_x_continuous(limits = c(0, 10), breaks = 1:9)
+```
+
+Looking at some more trends, there seem to be similar amounts of words spoken per episode across all four seasons with 9 as an anomaly since there are only two episode 9's as compared to the other episode numbers that appear in all four seasons of the show.
+
+```{r}
+dialogue_freq <- dialogue_unnest |>
+  group_by(season)|>
+  count(word, sort = TRUE)
+
+dialogue_idf <- dialogue_freq |>
+  bind_tf_idf(word, season, n)
+
+dialogue_idf %>%
+  group_by(season) %>% 
+  arrange(desc(tf_idf)) %>% 
+  top_n(10, tf_idf) %>% 
+  ggplot(aes(x = tf_idf, y = reorder(word, tf_idf), fill = season)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = "tf-idf") +
+  facet_wrap(~season, scales = "free") +
+  theme_minimal()
+
+
+```
+
+This plot shoes a tf-idf that compares the words between the four seasons. In each season, characters that only appear in that season are high on the tf-idf. For example Barb only appears in season 1 of the show and Vecna only appears in season 4 of the show.
+
+```{r}
+bigrams1 <- dialogue_st_noNA %>%
+  filter(season == 1) %>%
+  unnest_tokens(bigram, dialogue, token = "ngrams", n = 2)
+
+separate1 <- separate(bigrams1, bigram, c("word1", "word2", sep = " "))
+
+no_stop1 <- separate1 %>%
+      filter(!word1 %in% stop_words$word) %>%
+      filter(!word2 %in% stop_words$word)
+
+bigram_noNA1 <- no_stop1 %>%
+  filter(!is.na(word1)) %>% 
+  filter(!is.na(word2))
+
+s1_bigram <- bigram_noNA1 %>%
+  unite(bigram, word1, word2, sep = " ")
+  
+s1_bigram_counts <- s1_bigram %>% count(bigram, sort=TRUE)
+
+
+
+bigrams2 <- dialogue_st_noNA %>%
+  filter(season == 2) %>%
+  unnest_tokens(bigram, dialogue, token = "ngrams", n = 2)
+
+separate2 <- separate(bigrams2, bigram, c("word1", "word2", sep = " "))
+
+no_stop2 <- separate2 %>%
+      filter(!word1 %in% stop_words$word) %>%
+      filter(!word2 %in% stop_words$word)
+
+bigram_noNA2 <- no_stop2 %>%
+  filter(!is.na(word1)) %>% 
+  filter(!is.na(word2))
+
+s2_bigram <- bigram_noNA2 %>%
+  unite(bigram, word1, word2, sep = " ")
+  
+s2_bigram_counts <- s2_bigram %>% count(bigram, sort=TRUE)
+
+bigrams3 <- dialogue_st_noNA %>%
+  filter(season == 3) %>%
+  unnest_tokens(bigram, dialogue, token = "ngrams", n = 2)
+
+separate3 <- separate(bigrams3, bigram, c("word1", "word2", sep = " "))
+
+no_stop3 <- separate3 %>%
+      filter(!word1 %in% stop_words$word) %>%
+      filter(!word2 %in% stop_words$word)
+
+bigram_noNA3 <- no_stop3 %>%
+  filter(!is.na(word1)) %>% 
+  filter(!is.na(word2))
+
+s3_bigram <- bigram_noNA3 %>%
+  unite(bigram, word1, word2, sep = " ")
+  
+s3_bigram_counts <- s3_bigram %>% count(bigram, sort=TRUE)
+
+bigrams4 <- dialogue_st_noNA %>%
+  filter(season == 4) %>%
+  unnest_tokens(bigram, dialogue, token = "ngrams", n = 2)
+
+separate4 <- separate(bigrams4, bigram, c("word1", "word2", sep = " "))
+
+no_stop4 <- separate4 %>%
+      filter(!word1 %in% stop_words$word) %>%
+      filter(!word2 %in% stop_words$word)
+
+bigram_noNA4 <- no_stop1 %>%
+  filter(!is.na(word1)) %>% 
+  filter(!is.na(word2))
+
+s4_bigram <- bigram_noNA4 %>%
+  unite(bigram, word1, word2, sep = " ")
+  
+s4_bigram_counts <- s4_bigram %>% count(bigram, sort=TRUE)
+
+s1_first10 <- s1_bigram_counts[1:10, ]
+s2_first10 <- s2_bigram_counts[1:10, ]
+s3_first10 <- s3_bigram_counts[1:10, ]
+s4_first10 <- s4_bigram_counts[1:10, ]
+
+all_bigrams <- cbind(s1_first10, s2_first10, s3_first10, s4_first10)
+
+names(all_bigrams) <- c("S1 Bigrams", "S1 N", "S2 Bigrams", "S2 N", "S3 Bigrams", "S3 N", "S4 Bigrams", "S4 N")
+
+print(all_bigrams)
+
+
+```
+
+The above tables show the top 10 most frequently said bigrams from each season of the show. Stranger Things tends to have more dark and disturbing concepts as the seasons go on so I wanted to see if this could be seen through the most popular bigrams. While a lot of the bigrams are negative throughout all four seasons of the show, I cannot actually discern a trend between seasons of the bigrams becoming "more negative."
+
+```{r}
+dialogue_bigrams <- dialogue_st_noNA %>%
+   unnest_tokens(bigram, dialogue, token = "ngrams", n = 2)
+
+bigrams_separate <- separate(dialogue_bigrams, bigram, c("word1", "word2", sep = " "))
+
+bigram_nostop <- bigrams_separate %>%
+      filter(!word1 %in% stop_words$word) %>%
+      filter(!word2 %in% stop_words$word)
+
+bigram_noNA <- bigram_nostop %>%
+  filter(!is.na(word1)) %>% 
+  filter(!is.na(word2))
+
+st_bigram <- bigram_noNA %>%
+  unite(bigram, word1, word2, sep = " ")
+  
+st_bigram_counts <- st_bigram %>% count(bigram, sort=TRUE)
+
+head(st_bigram_counts, 10)
+```
+
+This table shows the top ten most spoken bigrams for all four seasons of the show combined.
+
+```{r}
+dialogue_sentiment <- dialogue_unnest %>%
+  inner_join(get_sentiments("bing"))%>%
+  count(word, sentiment, sort = TRUE)%>%
+  ungroup()
+
+dialogue_sentiment %>%
+  group_by(sentiment) %>%
+  slice_max(n, n = 15) %>% 
+  ungroup() %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(x = "Contribution to sentiment",
+       y = NULL)
+```
+
+This plot shows the sentiment analysis from all four seasons of the show. Overall, there seems to be a larger contribution to sentiment from negative words compared to positive words, which is on par with the subject matter of the show.
+
+```{r}
+library(wordcloud)
+library(RColorBrewer)
+library(wordcloud2)
+library(tm)
+```
+
+```{r}
+suppressWarnings(
+  wordcloud(season1$word
+        , scale=c(5,0.5)     
+        , max.words=100     
+        , random.order=FALSE 
+        , rot.per=0.35       
+        , use.r.layout=FALSE 
+        , colors=brewer.pal(8, "Dark2")))
+
+```
+
+The above wordcloud represents season 1.
+
+```{r}
+suppressWarnings(
+  wordcloud(season2$word
+        , scale=c(5,0.5)     
+        , max.words=100     
+        , random.order=FALSE 
+        , rot.per=0.35       
+        , use.r.layout=FALSE 
+        , colors=brewer.pal(8, "Dark2")))
+```
+
+The above wordcloud represents season 2.
+
+```{r}
+suppressWarnings(
+  wordcloud(season3$word
+        , scale=c(5,0.5)     
+        , max.words=100     
+        , random.order=FALSE 
+        , rot.per=0.35       
+        , use.r.layout=FALSE 
+        , colors=brewer.pal(8, "Dark2")))
+```
+
+The above wordcloud represents season 3.
+
+```{r}
+suppressWarnings(
+  wordcloud(season4$word
+        , scale=c(5,0.5)     
+        , max.words=100     
+        , random.order=FALSE 
+        , rot.per=0.35       
+        , use.r.layout=FALSE 
+        , colors=brewer.pal(8, "Dark2")))
+```
+
+The above wordcloud represents season 4.
+
+The four above plots are word clouds from the words spoken in seasons 1-4 in order. All four plots seem to have similar "major words" such as yeah and hey. But the lesser used words, similarly seen in the tf-idf, are characters names depending on the season and some seemingly season specific phrasing.
